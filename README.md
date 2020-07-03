@@ -2,6 +2,19 @@
 Jupyter notebook for Paper: An Efficient and Flexible Spike Train Model via Empirical Bayes
 
 
+## simulation-experiment.ipynb
+Estimate neural network between the simulation data
+
+## experimental data.ipynb
+Estimate neural network between the real retinal cells, based on the rnet-1 dataset (link: http://crcns.org/data-sets/retina/ret-1).
+
+## experimental_data_draw_network.ipynb
+Visualize the neural network based on the experimental data
+
+
+
+
+
 #package required: \
 python>=3.6 \
 pystan=2.19.1 \
