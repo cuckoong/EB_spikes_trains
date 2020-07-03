@@ -14,7 +14,7 @@ Visualize the neural network based on the experimental data
 
 
 
-#package required: \
+# package required: \
 python>=3.6 \
 pystan=2.19.1 \
 matplolib=3.2.1 \
