@@ -177,9 +177,11 @@ def SOD_optimize(data):
     r_op = op_sod['x'][0]
     beta0_op = op_sod['x'][1]
     gam_op = op_sod['x'][2]
+    s_op = op_sod['x'][3]
     beta_op = op_sod['x'][-n_neuron:]
     mu_op = (gam_op * np.exp(beta0_op + np.dot(data['X'], beta_op)) + 1) ** (-1 / gam_op)
-    y_op = r_op * (1 / mu_op - 1)  # estimated y value
+    theta_op = (n_sim*r_op + s_op*mu_op)/(n_sim*r_op+n_sim*np.mean(y_sim_train, axis=0)+s_op)
+    y_op = r_op * (1 / theta_op - 1)  # estimated y value
     return op_sod, y_op, np.mean((y_op - y_sim_test) ** 2)
 
 
@@ -278,7 +280,7 @@ if __name__ == '__main__':
     n_neuron = [100]
     n_iter = [50]
     # testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
-    # testing(5,7,50,50,100,100,2)
+    # testing(5,7,50,10,500,100,2)
     iter_list = product(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
     pool = Pool(processes=5)
     pool.starmap(testing, iter_list)
