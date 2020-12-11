@@ -6,6 +6,7 @@ from scipy import optimize
 from scipy import stats
 import scipy.special as sc
 import pickle
+import pystan
 from multiprocessing import Pool, cpu_count
 
 
@@ -50,6 +51,14 @@ def simulate_data(n_sim, n_bin, n_neuron, case, seed=42, s=None, r=None, gam=Non
     print(np.mean((y_sim - y_true) ** 2))
     return data
 
+# initial guess
+def initial_guess(n_neuron):
+    r0 = np.random.choice(np.arange(1, 100), 1)[0]  # need attention
+    gam0 = np.random.uniform(1, 10, 1)[0]
+    s0 = np.random.choice(np.arange(1, 1000), 1)[0]  # need attention
+    beta0_initial = 0 #np.random.uniform(-1, 1, 1)[0]
+    beta_initial = [0]*n_neuron #np.random.uniform(-1, 1, n_neuron) #np.random.uniform(-1, 1, n_neuron).tolist()  #
+    return dict(r=r0, b0 = beta0_initial, b =beta_initial, s= s0, gam = gam0)
 
 def S0D_objective(x0, y, X):
     r = x0[0]
@@ -278,6 +287,90 @@ def testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter=50):
     with open(filename, 'wb') as f:
         pickle.dump(result, f)
 
+def fb_testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter):
+    # get simulation data
+    model = """
+    data {
+      int<lower=1> N_bin;    // rows of data, bins 
+      int<lower=1> N_sim;    // columns of data, trials
+      int<lower=1> N_neuron;    // rows of neurons
+      real X[N_neuron, N_bin];       // M neurons, N bins
+      int<lower=0> y[N_sim,N_bin]; // response
+      real y_mean[N_bin];           // mean of y train
+    }
+
+    parameters {
+      real<lower=1, upper=100> r; // neg. binomial mean parameter. [1, np.inf] 
+      real<lower=-1,upper=1>  b0;  // intercept. [-1, 1] 
+      real<lower=-1,upper=1>  b[N_neuron];  // slopes. [-1, 1] 
+      real<lower=1> s;  //sigma. [1, np.inf]
+      real<lower=1, upper=10> gam; //gamma. [-np.inf, np.inf]
+    }
+
+    transformed parameters{
+      real mu[N_bin]; 
+      real phi[N_bin];
+
+      for(i in 1:N_bin){
+        mu[i] = (gam*exp(b0 + dot_product(X[,i],b))+1)^(-1/gam);
+        phi[i] = (N_sim*r + s*mu[i])/(N_sim*r+N_sim*y_mean[i]+s);
+        }
+    }
+
+    model {   
+      // data model:
+      for(i in 1:N_bin){
+        for(j in 1:N_sim){
+         y[j,i] ~ neg_binomial(r, phi[i]/(1-phi[i]));
+        }
+      }
+    }
+    generated quantities {
+      vector[N_bin] y_new;
+      for (n in 1:N_bin){
+        y_new[n] = r*(1/phi[n]-1);
+        }
+    }
+    """
+
+    sm = pystan.StanModel(model_code=model, verbose=0)
+    data = simulate_data(n_sim, n_bin, n_neuron, case ='sod', seed=42, s=s, r=r, gam=gam, density=0.2)
+
+    X = data['X'].T
+    n_sim = data['n_sim']
+    y_sim = data['y_sim']
+    y_sim_train = y_sim[:n_sim, ]
+    y_sim_test = y_sim[n_sim:, ]
+    y_mean = np.mean(y_sim_train, axis=0)
+    y_true = data['y_true']
+
+    # MCMC model
+    fit = sm.sampling(data=dict(N_bin=n_bin, N_neuron=n_neuron, N_sim=n_sim, y=y_sim_train,
+                                X=X, y_mean = y_mean),
+                      init= [initial_guess(n_neuron) for i in range(n_iter)],
+                      seed=42,
+                      n_jobs=4,
+                      chains=n_iter,
+                      verbose=True)
+    y_op = fit['y_new']
+    b_op = fit['b']
+    b0_op = fit['b0']
+    r_op = fit['r']
+    gam_op = fit['gam']
+    s_op = fit['s']
+
+    fit_op = (y_op, b_op, b0_op, r_op, gam_op, s_op)
+    y_est = np.mean(y_op, axis=0)
+    beta_list = np.mean(b_op, axis=0)
+    mse_list = np.mean((y_sim_test-y_est)**2)
+
+    result = (mse_list, beta_list, fit_op, y_est, data)
+
+    filename = 'SODS_fb_' + str(r) + 'gam' + str(gam) + 's' + str(s) + \
+               'sim' + str(n_sim) + 'bin' + str(n_bin) + 'neuron' + str(n_neuron) + '.pickle'
+    with open(filename, 'wb') as f:
+        pickle.dump(result, f)
+
 
 if __name__ == '__main__':
     # start "number of cores" processes
@@ -289,8 +382,9 @@ if __name__ == '__main__':
     n_neuron = [100]
     n_iter = [5]
     # testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
-    testing(5,7,50,10,500,100,2)
+    # fb_testing(5,7,50,10,500,100,2)
     # iter_list = product(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
     # pool = Pool(processes=5)
+    pool.starmap(fb_testing, iter_list)
     # pool.starmap(testing, iter_list)
     # pool.close()
