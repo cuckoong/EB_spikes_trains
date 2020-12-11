@@ -116,10 +116,17 @@ def Poisson_optimize(data):
     n_neuron = data['n_neuron']
     n_sim = data['n_sim']
     beta_bound = [-1, 1]
+
+    # initial guess
+    beta0 = np.random.uniform(-1, 1)
+    rvs = stats.uniform(loc=-1, scale=2).rvs
+    beta_initial = sps.random(1, n_neuron, density=0.2, data_rvs=rvs).toarray()[0]
+
     bnds = [beta_bound] * (1 + n_neuron)
-    beta_initial = np.random.uniform(-1, 1,
-                                     (1 + n_neuron))  # sps.random(1, n_neuron, density=0.2, data_rvs=rvs).toarray()[0]
-    x0 = [beta_initial]
+    # beta_initial = np.random.normal(-1, 1, (1 + n_neuron))  # sps.random(1, n_neuron, density=0.2, data_rvs=rvs).toarray()[0]
+    # beta_initial = [0] * (1 + n_neuron)
+    x0 = [beta0]
+    x0.extend(beta_initial)
 
     # optimization using scipy
     # t0 = time.time()
@@ -249,9 +256,9 @@ def testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter=50):
     op_list = []
     y_estimate_list = []
     for _ in range(n_iter):
-        op, y_estimate, mse_test = SOD_optimize(data)
+        # op, y_estimate, mse_test = SOD_optimize(data)
         # op, y_estimate, mse_test = NBGLM_optimize(data)
-        # op, y_estimate, mse_test = Poisson_optimize(data)
+        op, y_estimate, mse_test = Poisson_optimize(data)
         if not op.success:
             print(op.message)
         # log op
@@ -264,7 +271,7 @@ def testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter=50):
         y_estimate_list.append(y_estimate)
 
     result = (mse_list, beta_list, op_list, y_estimate_list, data)
-    filename = 'Poisson_sod_' + str(r) + 'gam' + str(gam) + 's' + str(s) + \
+    filename = 'SOD_poisson_' + str(r) + 'gam' + str(gam) + 's' + str(s) + \
                'sim' + str(n_sim) + 'bin' + str(n_bin) + 'neuron' + str(n_neuron) + '.pickle'
     with open(filename, 'wb') as f:
         pickle.dump(result, f)
@@ -280,8 +287,8 @@ if __name__ == '__main__':
     n_neuron = [100]
     n_iter = [50]
     # testing(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
-    # testing(5,7,50,10,500,100,2)
-    iter_list = product(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
-    pool = Pool(processes=5)
-    pool.starmap(testing, iter_list)
-    pool.close()
+    testing(5,7,50,10,500,100,2)
+    # iter_list = product(r, gam, s, n_sim, n_bin, n_neuron, n_iter)
+    # pool = Pool(processes=5)
+    # pool.starmap(testing, iter_list)
+    # pool.close()
