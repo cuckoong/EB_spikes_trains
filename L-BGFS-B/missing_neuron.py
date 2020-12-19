@@ -5,8 +5,8 @@ import numpy as np
 if __name__ == '__main__':
     # simulation sod + solution sod
     seed_betas = [12, 22, 32, 42, 52, 62, 72, 82, 92, 102]
-    n_sim = 10
-    n_bin = 50
+    n_sim = 50
+    n_bin = 500
     n_neuron = 100
     s = 50
     r = 5
@@ -14,14 +14,15 @@ if __name__ == '__main__':
     partials = [0.8, 0.5, 0.3]
     seed_partials = [11, 13, 17, 19, 23]
 
-    sod_r2_list = []
-    sod_mse_list = []
-    nbglm_r2_list = []
-    nbglm_mse_list = []
-    poisson_r2_list = []
-    poisson_mse_list = []
+
 
     for partial in partials:
+        sod_r2_list = []
+        sod_mse_list = []
+        nbglm_r2_list = []
+        nbglm_mse_list = []
+        poisson_r2_list = []
+        poisson_mse_list = []
         for seed_beta in seed_betas:
             # training
             sod = SOD()
