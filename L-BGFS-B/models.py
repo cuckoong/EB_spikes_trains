@@ -5,9 +5,8 @@ import scipy
 from scipy import optimize
 from scipy.optimize import basinhopping
 import scipy.sparse as sps
-from scipy.special import digamma, polygamma
+from scipy.special import digamma
 import pickle
-import pandas as pd
 
 
 def optimize_fun(fun, der, x0, X, y, lam, bnds, basin=False):
@@ -18,7 +17,6 @@ def optimize_fun(fun, der, x0, X, y, lam, bnds, basin=False):
         op = scipy.optimize.minimize(fun, x0, args=(X, y, lam), bounds=bnds, method='L-BFGS-B', jac= der,
                                      options={'disp': True, 'maxiter': 5000})
     return op
-
 
 class SOD:
     def __init__(self):
@@ -282,7 +280,6 @@ class NBGLM:
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 
-
 class POISSON:
     def __init__(self):
         self.type = 'poisson'
@@ -385,185 +382,3 @@ class POISSON:
     def save(self,filename):
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
-
-
-if __name__ == '__main__':
-    # simulation sod + solution sod
-    seed_betas = [12,22,32,42,52,62,72,82,92,102]
-    n_sim = 50
-    n_bin = 500
-    n_neuron = 100
-    ss = [5, 10, 50, 100]
-    rs = [1,3,5,7,9]
-    gams = [3,5,7,9]
-
-    # for s in ss:
-    #     r = 5
-    #     gam = 7
-    #     sod_r2_list = []
-    #     sod_mse_list = []
-    #     nbglm_r2_list = []
-    #     nbglm_mse_list = []
-    #     poisson_r2_list = []
-    #     poisson_mse_list = []
-    #     for seed_beta in seed_betas:
-    #         # training
-    #         sod = SOD()
-    #         X_train, y_train, y_train_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-    #                                                       seed_beta=seed_beta, seed_X=101, s = s, r = r, gam = gam)
-    #         # sod solution
-    #         sod.fit(X_train, y_train, lam=10)
-    #         filename_sod = 'sod_sod_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'.\
-    #             format(r, s, gam,n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         sod.save(filename_sod)
-    #
-    #         # nbglm solution
-    #         nbglm = NBGLM()
-    #         nbglm.fit(X_train, y_train, lam=10)
-    #         filename_nb = 'sod_nbglm_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-    #             format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         nbglm.save(filename_nb)
-    #
-    #         # poisson solution
-    #         poisson = POISSON()
-    #         poisson.fit(X_train, y_train, lam=10)
-    #         filename_poi = 'sod_poisson_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-    #             format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         poisson.save(filename_poi)
-    #
-    #         # evaluation
-    #         X_test, y_test, y_test_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-    #                                                    seed_beta=seed_beta, seed_X=42, s = s, r = r, gam = gam)
-    #
-    #         sod_r2_list.append(sod.evaluate(X_test, y_test_true, 'r2'))
-    #         sod_mse_list.append(sod.evaluate(X_test, y_test_true, 'mse'))
-    #
-    #         nbglm_r2_list.append(nbglm.evaluate(X_test, y_test_true, 'r2'))
-    #         nbglm_mse_list.append(nbglm.evaluate(X_test, y_test_true, 'mse'))
-    #
-    #         poisson_r2_list.append(poisson.evaluate(X_test, y_test_true, 'r2'))
-    #         poisson_mse_list.append(poisson.evaluate(X_test, y_test_true, 'mse'))
-    #     # log results
-    #     filename2 = 'sod_data_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_X_{}_results.csv'.\
-    #         format(r, s, gam, n_sim, n_bin, n_neuron, 42)
-    #     result = dict(sod_r2_list = sod_r2_list, sod_mse_list=sod_mse_list,
-    #                   nbglm_r2_list = nbglm_r2_list, nbglm_mse_list = nbglm_mse_list,
-    #                   poisson_r2_list = poisson_r2_list, poisson_mse_list = poisson_mse_list)
-    #
-    #     df = pd.DataFrame(result)
-    #     df.to_csv(filename2)
-
-    # for r in rs:
-    #     s = 50
-    #     gam = 7
-    #     sod_r2_list = []
-    #     sod_mse_list = []
-    #     nbglm_r2_list = []
-    #     nbglm_mse_list = []
-    #     poisson_r2_list = []
-    #     poisson_mse_list = []
-    #     for seed_beta in seed_betas:
-    #         # training
-    #         sod = SOD()
-    #         X_train, y_train, y_train_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-    #                                                       seed_beta=seed_beta, seed_X=101, s=s, r=r, gam=gam)
-    #         # sod solution
-    #         sod.fit(X_train, y_train, lam=10)
-    #         filename_sod = 'sod_sod_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-    #             format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         sod.save(filename_sod)
-    #
-    #         # nbglm solution
-    #         nbglm = NBGLM()
-    #         nbglm.fit(X_train, y_train, lam=10)
-    #         filename_nb = 'sod_nbglm_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-    #             format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         nbglm.save(filename_nb)
-    #
-    #         # poisson solution
-    #         poisson = POISSON()
-    #         poisson.fit(X_train, y_train, lam=10)
-    #         filename_poi = 'sod_poisson_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-    #             format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-    #         poisson.save(filename_poi)
-    #
-    #         # evaluation
-    #         X_test, y_test, y_test_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-    #                                                    seed_beta=seed_beta, seed_X=42, s=s, r=r, gam=gam)
-    #
-    #         sod_r2_list.append(sod.evaluate(X_test, y_test_true, 'r2'))
-    #         sod_mse_list.append(sod.evaluate(X_test, y_test_true, 'mse'))
-    #
-    #         nbglm_r2_list.append(nbglm.evaluate(X_test, y_test_true, 'r2'))
-    #         nbglm_mse_list.append(nbglm.evaluate(X_test, y_test_true, 'mse'))
-    #
-    #         poisson_r2_list.append(poisson.evaluate(X_test, y_test_true, 'r2'))
-    #         poisson_mse_list.append(poisson.evaluate(X_test, y_test_true, 'mse'))
-    #     # log results
-    #     filename2 = 'sod_data_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_X_{}_results.csv'. \
-    #         format(r, s, gam, n_sim, n_bin, n_neuron, 42)
-    #     result = dict(sod_r2_list=sod_r2_list, sod_mse_list=sod_mse_list,
-    #                   nbglm_r2_list=nbglm_r2_list, nbglm_mse_list=nbglm_mse_list,
-    #                   poisson_r2_list=poisson_r2_list, poisson_mse_list=poisson_mse_list)
-    #
-    #     df = pd.DataFrame(result)
-    #     df.to_csv(filename2)
-
-    for gam in gams:
-        s = 50
-        r = 5
-        sod_r2_list = []
-        sod_mse_list = []
-        nbglm_r2_list = []
-        nbglm_mse_list = []
-        poisson_r2_list = []
-        poisson_mse_list = []
-        for seed_beta in seed_betas:
-            # training
-            sod = SOD()
-            X_train, y_train, y_train_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-                                                          seed_beta=seed_beta, seed_X=101, s=s, r=r, gam=gam)
-            # sod solution
-            sod.fit(X_train, y_train, lam=10)
-            filename_sod = 'sod_sod_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-                format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-            sod.save(filename_sod)
-
-            # nbglm solution
-            nbglm = NBGLM()
-            nbglm.fit(X_train, y_train, lam=10)
-            filename_nb = 'sod_nbglm_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-                format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-            nbglm.save(filename_nb)
-
-            # poisson solution
-            poisson = POISSON()
-            poisson.fit(X_train, y_train, lam=10)
-            filename_poi = 'sod_poisson_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-                format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-            poisson.save(filename_poi)
-
-            # evaluation
-            X_test, y_test, y_test_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-                                                       seed_beta=seed_beta, seed_X=42, s=s, r=r, gam=gam)
-
-            sod_r2_list.append(sod.evaluate(X_test, y_test_true, 'r2'))
-            sod_mse_list.append(sod.evaluate(X_test, y_test_true, 'mse'))
-
-            nbglm_r2_list.append(nbglm.evaluate(X_test, y_test_true, 'r2'))
-            nbglm_mse_list.append(nbglm.evaluate(X_test, y_test_true, 'mse'))
-
-            poisson_r2_list.append(poisson.evaluate(X_test, y_test_true, 'r2'))
-            poisson_mse_list.append(poisson.evaluate(X_test, y_test_true, 'mse'))
-        # log results
-        filename2 = 'sod_data_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_X_{}_results.csv'. \
-            format(r, s, gam, n_sim, n_bin, n_neuron, 42)
-        result = dict(sod_r2_list=sod_r2_list, sod_mse_list=sod_mse_list,
-                      nbglm_r2_list=nbglm_r2_list, nbglm_mse_list=nbglm_mse_list,
-                      poisson_r2_list=poisson_r2_list, poisson_mse_list=poisson_mse_list)
-
-        df = pd.DataFrame(result)
-        df.to_csv(filename2)
-
-
-
