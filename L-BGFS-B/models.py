@@ -9,10 +9,10 @@ from scipy.special import digamma
 import pickle
 
 
-def optimize_fun(fun, der, x0, X, y, lam, bnds, con, basin=False):
+def optimize_fun(fun, der, x0, X, y, lam, bnds, con, basin=True):
     if basin:
         op = basinhopping(fun, x0, niter=100, T = 10, disp=True, niter_success = 20,
-                          minimizer_kwargs={'method': 'SLSQP', 'bounds':bnds, 'jac': der,
+                          minimizer_kwargs={'method': 'L-BFGS-B', 'bounds':bnds, 'jac': der,
                                             'args':(X, y, lam), 'options':{'maxiter': 5000},
                                             'constraints':con})
     else:
@@ -65,10 +65,12 @@ class SOD:
 
     def objective(self, x0, X, y, lam=1, alpha=0.5):
         r = x0[0]
-        gam = x0[1]
+        loggam = x0[1]
         s = x0[2]
         beta0 = x0[3]
         beta = x0[4:]
+
+        gam = np.exp(loggam)
         mu = (gam * np.exp(beta0 + np.dot(X, beta)) + 1) ** (-1 / gam)
         LL_sum = -1 * np.sum(sc.gammaln(r + s * mu) +
                              sc.gammaln(y + s - s * mu) +
@@ -76,18 +78,19 @@ class SOD:
                              sc.gammaln(s) -
                              sc.gammaln(r + y + s) -
                              sc.gammaln(r) -
-                             sc.gammaln(s * mu) -
-                             sc.gammaln(s - s * mu))
+                             sc.gammaln(s * mu+np.finfo(np.float32).eps) -
+                             sc.gammaln(s - s * mu+np.finfo(np.float32).eps))
         LL_sum += lam * (alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - alpha) * np.sum(beta ** 2))
         # LL_sum += lam * (alpha * np.sum(np.abs(beta)))
         return LL_sum
 
     def der(self, x0, X, y, lam, alpha=0.5):
         r = x0[0]
-        gam = x0[1]
+        loggam = x0[1]
         s = x0[2]
         beta0 = x0[3]
         beta = x0[4:]
+        gam = np.exp(loggam)
         der = np.zeros_like(x0)
 
         g_est = np.exp(beta0 + np.dot(X, beta))
@@ -103,41 +106,48 @@ class SOD:
         C = digamma(s) - digamma(r + y + s)
 
         der[0] = -1 * np.sum(digamma(r + s * mu) + digamma(r + y) - digamma(r + y + s) - digamma(r))
-        der[1] = -1 * np.sum(der_mu_over_gam * (A - B))
+        der[1] = -1 * gam * np.sum(der_mu_over_gam * (A - B))
         der[2] = -1 * np.sum(A * mu + B * (1 - mu) + C)
         der[3] = -1 * s * np.sum(der_mu_over_beta0 * (A - B))
         der[4:] = -1 * s * np.sum(der_mu_over_beta * (A - B).reshape(-1, 1), axis=0) + \
-                 lam * (alpha * np.sign(beta)) # + (1 - alpha) * beta)
+                 lam * (alpha * np.sign(beta) + (1 - alpha) * beta)
         return der
 
     def fit(self, X, y, lam, partial=1, seed=1):
         n_neuron = X.shape[1]
         # bounds
         r_bound = [1, np.inf]  # need attention
-        gam_bound = [1, np.inf]
-        s_bound = [1e-9, np.inf]
+        loggam_bound = [0, np.inf] # [1, np.inf]
+        s_bound = [1, np.inf]
         beta0_bound = [None, None]
         beta_bound = [-1, 1]
-        bnds = [r_bound, gam_bound, s_bound, beta0_bound]
+        bnds = [r_bound, loggam_bound, s_bound, beta0_bound]
         bnds.extend([beta_bound] * int(n_neuron * partial))
 
         # initials
-        r0 = 3
-        gam0 = 3
-        s0 = 3
+        r0 = np.log(3)
+        loggam0 = np.log(3)
+        s0 = np.log(3)
+
         beta0_initial = np.random.uniform(-1, 1, 1)[0]
         beta_initial = np.random.uniform(-1, 1, n_neuron)[0:int(n_neuron * partial)]
-        x0 = [r0, gam0, s0, beta0_initial]
+        x0 = [r0, loggam0, s0, beta0_initial]
         x0.extend(beta_initial)
 
         con = (
             {'type': 'ineq',
-             'fun':lambda x, X, y, lam: (x[1] * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / x[1]) - 1e-9,
+             'fun':lambda x, X, y, lam: (np.exp(x[1]) * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / np.exp(x[1])) - 1e-9,
              'args': (X, y, lam)},
 
             {'type':'ineq',
-             'fun': lambda x, X, y, lam: 1-(x[1] * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / x[1])-1e-9,
-             'args': (X, y, lam)}
+             'fun': lambda x, X, y, lam: 1-(np.exp(x[1]) * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / np.exp(x[1]))-1e-9,
+             'args': (X, y, lam)},
+
+            {'type': 'ineq',
+             'fun': lambda x : x[0] - 1e-9 - 1},
+
+            {'type': 'ineq',
+             'fun': lambda x : x[2] - 1e-9 - 1}
         )
 
         # optimization using scipy
@@ -146,13 +156,24 @@ class SOD:
     def predict(self, X):
         op = self.op
         r_op = op['x'][0]
-        gam_op = op['x'][1]
-        s_op = op['x'][2]
+        gam_op = np.exp(op['x'][1])
+        # s_op = np.exp(op['x'][2])
         beta0_op = op['x'][3]
         beta_op = op['x'][4:]
         mu_op = (gam_op * np.exp(beta0_op + np.dot(X, beta_op)) + 1) ** (-1 / gam_op)
         y_op = r_op * (1 / mu_op - 1)  # estimated y value
         return y_op
+
+    # def predict_real(self, X):
+    #     op = self.op
+    #     r_op = np.exp(op['x'][0])
+    #     gam_op = np.exp(op['x'][1])
+    #     # s_op = np.exp(op['x'][2])
+    #     beta0_op = op['x'][3]
+    #     beta_op = op['x'][4:]
+    #     mu_op = (gam_op * np.exp(beta0_op + np.dot(X, beta_op)) + 1) ** (-1 / gam_op)
+    #     y_op = r_op * (1 / mu_op - 1)  # estimated y value
+    #     return y_op
 
     def evaluate(self, X, y, metrics):
         from sklearn.metrics import r2_score, mean_squared_error
