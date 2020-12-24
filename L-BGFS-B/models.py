@@ -9,10 +9,12 @@ from scipy.special import digamma
 import pickle
 
 
-def optimize_fun(fun, der, x0, X, y, lam, bnds, basin=False):
+def optimize_fun(fun, der, x0, X, y, lam, bnds, con, basin=False):
     if basin:
         op = basinhopping(fun, x0, niter=100, T = 10, disp=True, niter_success = 20,
-                          minimizer_kwargs={'method': 'L-BFGS-B', 'bounds':bnds, 'jac': der, 'args':(X, y, lam)},)
+                          minimizer_kwargs={'method': 'SLSQP', 'bounds':bnds, 'jac': der,
+                                            'args':(X, y, lam), 'options':{'maxiter': 5000},
+                                            'constraints':con})
     else:
         op = scipy.optimize.minimize(fun, x0, args=(X, y, lam), bounds=bnds, method='L-BFGS-B', jac= der,
                                      options={'disp': True, 'maxiter': 5000})
@@ -61,7 +63,7 @@ class SOD:
         else:
             return X, y
 
-    def objective(self, x0, X, y, lam, alpha=0.5):
+    def objective(self, x0, X, y, lam=1, alpha=0.5):
         r = x0[0]
         gam = x0[1]
         s = x0[2]
@@ -77,6 +79,7 @@ class SOD:
                              sc.gammaln(s * mu) -
                              sc.gammaln(s - s * mu))
         LL_sum += lam * (alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - alpha) * np.sum(beta ** 2))
+        # LL_sum += lam * (alpha * np.sum(np.abs(beta)))
         return LL_sum
 
     def der(self, x0, X, y, lam, alpha=0.5):
@@ -104,7 +107,7 @@ class SOD:
         der[2] = -1 * np.sum(A * mu + B * (1 - mu) + C)
         der[3] = -1 * s * np.sum(der_mu_over_beta0 * (A - B))
         der[4:] = -1 * s * np.sum(der_mu_over_beta * (A - B).reshape(-1, 1), axis=0) + \
-                  lam * (alpha * np.sign(beta) + (1 - alpha) * beta)
+                 lam * (alpha * np.sign(beta)) # + (1 - alpha) * beta)
         return der
 
     def fit(self, X, y, lam, partial=1, seed=1):
@@ -127,8 +130,18 @@ class SOD:
         x0 = [r0, gam0, s0, beta0_initial]
         x0.extend(beta_initial)
 
+        con = (
+            {'type': 'ineq',
+             'fun':lambda x, X, y, lam: (x[1] * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / x[1]) - 1e-9,
+             'args': (X, y, lam)},
+
+            {'type':'ineq',
+             'fun': lambda x, X, y, lam: 1-(x[1] * np.exp(x[3] + np.dot(X, x[4:])) + 1) ** (-1 / x[1])-1e-9,
+             'args': (X, y, lam)}
+        )
+
         # optimization using scipy
-        self.op = optimize_fun(self.objective, self.der,  x0, X, y, lam, bnds, basin=True)
+        self.op = optimize_fun(self.objective, self.der,  x0, X, y, lam, bnds, con, basin=True)
 
     def predict(self, X):
         op = self.op
@@ -206,7 +219,7 @@ class NBGLM:
         beta = x0[3:]
         mu = (gam * np.exp(beta0 + np.dot(X, beta)) + 1) ** (-1 / gam)
         LL_sum = -1 * np.sum(sc.gammaln(r + y) - sc.gammaln(r) + r * np.log(mu) + y * np.log(1 - mu))
-        LL_sum += lam * (alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - alpha) * np.sum(beta ** 2))
+        # LL_sum += lam * (alpha * np.sum(np.abs(beta)))# + 1 / 2 * (1 - alpha) * np.sum(beta ** 2))
         return LL_sum
 
     def der(self, x0, X, y, lam, alpha=0.5):
@@ -228,8 +241,8 @@ class NBGLM:
         der[0] = -1 * np.sum(digamma(r + y) - digamma(r) + np.log(mu))
         der[1] = -1 * np.sum(A * der_mu_over_gam)
         der[2] = -1 * np.sum(A * der_mu_over_beta0)
-        der[3:] = -1 * np.sum(der_mu_over_beta * A.reshape(-1,1), axis=0) + \
-                  lam * (alpha * np.sign(beta) + (1 - alpha) * beta)
+        der[3:] = -1 * np.sum(der_mu_over_beta * A.reshape(-1,1), axis=0) # + \
+                  #lam * (alpha * np.sign(beta) + (1 - alpha) * beta)
         return der
 
     def fit(self, X, y, lam):
@@ -321,7 +334,7 @@ class POISSON:
         else:
             return X, y
 
-    def objective(self, x0, X, y, lam, alpha=0.5):
+    def objective(self, x0, X, y, lam=1, alpha=0.5):
         beta0 = x0[0]
         beta = x0[1:]
 
@@ -356,8 +369,18 @@ class POISSON:
         x0 = [beta0_initial]
         x0.extend(beta_initial)
 
+        con = (
+            {'type': 'ineq',
+             'fun': lambda x, X, y, lam: np.exp(x[0] + np.dot(X, x[1:])) - 1e-9,
+             'args': (X, y, lam)},
+
+            {'type': 'ineq',
+             'fun': lambda x, X, y, lam: 1 - np.exp(x[0]  + np.dot(X, x[1:])) - 1e-9,
+             'args': (X, y, lam)}
+        )
+
         # optimization using scipy
-        self.op = optimize_fun(self.objective, self.der, x0, X, y, lam, bnds, basin=True)
+        self.op = optimize_fun(self.objective, self.der, x0, X, y, lam, bnds, con, basin=True)
 
 
     def predict(self, X):
