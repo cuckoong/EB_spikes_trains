@@ -19,7 +19,7 @@ def my_score_fun(clf, X, y):
 
 def optimize_fun(fun, der, x0, X, y, bnds, basin=True):
     if basin:
-        op = basinhopping(fun, x0, niter=50, T=10, niter_success=20,
+        op = basinhopping(fun, x0, niter=50, T=10, niter_success=20, disp=True,
                           minimizer_kwargs={'method': 'L-BFGS-B', 'bounds': bnds, 'jac': der,
                                             'args': (X, y), 'options': {'maxiter': 5000}})
     else:
@@ -76,11 +76,6 @@ class SOD(BaseEstimator):
 
     def get_params(self, deep=True):
         return {'lam': self.lam, 'op': self.op}
-
-    # def set_params(self, **parameters):
-    #     for parameter, value in parameters.items():
-    #         setattr(self, parameter, value)
-    #     return self
 
     def objective(self, x0, X, y):
         r = x0[0]
@@ -140,9 +135,9 @@ class SOD(BaseEstimator):
         bnds.extend([beta_bound] * X.shape[1])
 
         # initials
-        r0 = np.random.uniform(1, 100, 1)
-        gam0 = np.random.uniform(np.finfo(np.float32).eps, 100, 1)
-        s0 = np.random.uniform(1, 100, 1)
+        r0 = np.random.uniform(1, 100, 1)[0]
+        gam0 = np.random.uniform(np.finfo(np.float32).eps, 100, 1)[0]
+        s0 = np.random.uniform(1, 100, 1)[0]
 
         beta0_initial = np.random.uniform(-1, 1, 1)[0]
         beta_initial = np.random.uniform(-1, 1, n_neuron)[0:n_neuron]
@@ -251,7 +246,9 @@ class NBGLM(BaseEstimator):
         beta0 = x0[2]
         beta = x0[3:]
         mu = (gam * np.exp(beta0 + np.dot(X, beta)) + 1) ** (-1 / gam)
-        LL_sum = -1 * np.sum(sc.gammaln(r + y) - sc.gammaln(r) + r * np.log(mu) + y * np.log(1 - mu))
+        LL_sum = -1 * np.sum(sc.gammaln(r + y) - sc.gammaln(r) +
+                             r * np.log(mu + np.finfo(np.float32).eps) +
+                             y * np.log(1 - mu + np.finfo(np.float32).eps))
         LL_sum += self.lam * (self.alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - self.alpha) * np.sum(beta ** 2))
         return LL_sum
 
@@ -272,7 +269,7 @@ class NBGLM(BaseEstimator):
 
         A = r / mu - y / (1 - mu)
 
-        der[0] = -1 * np.sum(digamma(r + y) - digamma(r) + np.log(mu))
+        der[0] = -1 * np.sum(digamma(r + y) - digamma(r) + np.log(mu + np.finfo(np.float32).eps))
         der[1] = -1 * np.sum(A * der_mu_over_gam)
         der[2] = -1 * np.sum(A * der_mu_over_beta0)
         der[3:] = -1 * np.sum(der_mu_over_beta * A.reshape(-1, 1), axis=0) + \
@@ -330,9 +327,12 @@ class NBGLM(BaseEstimator):
             pickle.dump(self, f)
 
 
-class POISSON():
-    def __init__(self):
+class POISSON(BaseEstimator):
+    def __init__(self, lam=1, alpha=0.5, op=None):
         self.type = 'poisson'
+        self.lam = lam
+        self.alpha = alpha
+        self.op = op
 
     def simulate(self, n_sim, n_bin, n_neuron, seed_beta=42, seed_X=42, density=0.2, get_y_true=True):
         """
@@ -349,7 +349,7 @@ class POISSON():
         """
 
         np.random.seed(seed_beta)
-        beta0 = np.random.uniform(-1, 1)
+        beta0 = np.random.uniform(-1, 1)[0]
         rvs = stats.uniform(loc=-1, scale=2).rvs
         beta = sps.random(1, n_neuron, density=density, data_rvs=rvs).toarray()[0]
 
@@ -371,27 +371,31 @@ class POISSON():
         else:
             return X, y
 
-    def objective(self, x0, X, y, lam=1, alpha=0.5):
+    def get_params(self, deep=True):
+        return {'lam': self.lam, 'op': self.op}
+
+
+    def objective(self, x0, X, y):
         beta0 = x0[0]
         beta = x0[1:]
 
         mu = np.exp(beta0 + np.dot(X, beta))
         LL_sum = -1 * np.sum(y * np.log(mu) - mu)
-        LL_sum += lam * (alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - alpha) * np.sum(beta ** 2))
+        LL_sum += self.lam * (self.alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - self.alpha) * np.sum(beta ** 2))
         return LL_sum
 
-    def der(self, x0, X, y, lam, alpha=0.5):
+    def der(self, x0, X, y):
         beta0 = x0[0]
         beta = x0[1:]
 
         der = np.zeros_like(x0)
         der[0] = -1 * np.sum(y - np.exp(beta0 + np.dot(X, beta)))
         der[1:] = -1 * np.sum(X * (y - np.exp(beta0 + np.dot(X, beta))).reshape(-1, 1), axis=0) + \
-                  lam * (alpha * np.sign(beta) + (1 - alpha) * beta)
+                  self.lam * (self.alpha * np.sign(beta) + (1 - self.alpha) * beta)
 
         return der
 
-    def fit(self, X, y, lam):
+    def fit(self, X, y):
         n_neuron = X.shape[1]
         # bounds
         beta0_bound = [None, None]
@@ -406,18 +410,8 @@ class POISSON():
         x0 = [beta0_initial]
         x0.extend(beta_initial)
 
-        # con = (
-        #     {'type': 'ineq',
-        #      'fun': lambda x, X, y, lam: np.exp(x[0] + np.dot(X, x[1:])) - 1e-9,
-        #      'args': (X, y, lam)},
-        #
-        #     {'type': 'ineq',
-        #      'fun': lambda x, X, y, lam: 1 - np.exp(x[0]  + np.dot(X, x[1:])) - 1e-9,
-        #      'args': (X, y, lam)}
-        # )
-
         # optimization using scipy
-        self.op = optimize_fun(self.objective, self.der, x0, X, y, lam, bnds)
+        self.op = optimize_fun(self.objective, self.der, x0, X, y, bnds)
 
     def predict(self, X):
         op = self.op
@@ -426,8 +420,7 @@ class POISSON():
         y_op = np.exp(beta0_op + np.dot(X, beta_op))  # estimated y value
         return y_op
 
-    def evaluate(self, X, y, metrics):
-        from sklearn.metrics import r2_score, mean_squared_error
+    def evaluate(self, X, y, metrics='r2'):
         y_op = self.predict(X)
         if metrics == 'mse':
             mse = mean_squared_error(y, y_op)
