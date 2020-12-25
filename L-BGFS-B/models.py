@@ -18,7 +18,7 @@ def my_score_fun(clf, X, y):
 
 def optimize_fun(fun, der, x0, X, y, bnds, basin=True):
     if basin:
-        op = basinhopping(fun, x0, niter=50, T = 10, niter_success = 20,
+        op = basinhopping(fun, x0, niter=5, T = 10, niter_success = 20,
                           minimizer_kwargs={'method': 'L-BFGS-B', 'bounds':bnds, 'jac': der,
                                             'args':(X, y), 'options':{'maxiter': 5000}})
     else:
@@ -179,7 +179,7 @@ class SOD(BaseEstimator):
         y_op = r_op * (1 / mu_op - 1)  # estimated y value
         return y_op
 
-    def evaluate(self, X, y, y_true, metrics='r2'):
+    def evaluate(self, X, y_true, metrics='r2'):
         y_op = self.predict(X)
         if metrics == 'mse':
             mse = mean_squared_error(y_true, y_op)
