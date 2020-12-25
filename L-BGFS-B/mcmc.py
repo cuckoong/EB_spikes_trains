@@ -25,7 +25,7 @@ if __name__ == '__main__':
 
     with Model() as model:  # model specifications in PyMC3 are wrapped in a with-statement
         # Define priors
-        r = Uniform("r", lower=1, upper=100, shape=1)
+        r = Uniform("r", lower=1, upper=100)
         gam = Uniform("gam", lower=np.finfo(np.float32).eps, upper=100)
         s = Uniform("s", lower=np.finfo(np.float32).eps, upper=100)
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         beta = Uniform("beta", lower=-1, upper=1, shape=n_neuron)
 
         # mu
-        mu = pm.Deterministic('mu', (gam*math.exp(beta0 + math.dot(x,beta))+1)**(-1/gam))
+        mu = pm.Deterministic('mu', (gam*math.exp(beta0 + x.dot(beta))+1)**(-1/gam))
         # phi
         phi = Beta('phi', alpha=s*mu, beta=s*(1-mu))
 
@@ -42,3 +42,5 @@ if __name__ == '__main__':
 
         # Inference!
         trace = sample(100, cores=2)  # draw 3000 posterior samples using NUTS sampling
+
+        print('')
