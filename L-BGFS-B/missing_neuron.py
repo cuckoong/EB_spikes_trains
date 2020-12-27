@@ -1,77 +1,53 @@
 import pandas as pd
-from models import SOD  # , POISSON, NBGLM
+from models import SOD, POISSON, NBGLM, my_score_fun
+from sklearn.model_selection import GridSearchCV, KFold
+from sklearn.metrics import make_scorer
 import numpy as np
+
 
 if __name__ == '__main__':
     # simulation sod + solution sod
-    seed_betas = [12, 22, 32, 42, 52, 62, 72, 82, 92, 102]
+    seed_betas = [12,22,32,42,52,62,72,82,92,102]
     n_sim = 50
     n_bin = 500
     n_neuron = 100
     s = 50
     r = 5
     gam = 7
+    density = 1
+    lam = [0.1, 1, 10]
     partials = [0.8, 0.5, 0.3]
     seed_partials = [11, 13, 17, 19, 23]
 
+    r2_list = []
+    mse_list = []
 
+    for seed_beta in seed_betas:
+        # training
+        X_train_all, y_train, y_train_true = SOD().simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron, density=density,
+                                                        seed_beta=seed_beta, seed_X=101,
+                                                        s = s, r = r, gam = gam)
 
-    for partial in partials:
-        sod_r2_list = []
-        sod_mse_list = []
-        nbglm_r2_list = []
-        nbglm_mse_list = []
-        poisson_r2_list = []
-        poisson_mse_list = []
-        for seed_beta in seed_betas:
-            # training
-            sod = SOD()
-            X_train, y_train, y_train_true = sod.simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron,
-                                                          seed_beta=seed_beta, seed_X=101, s=s, r=r, gam=gam)
+        for seed_partial in seed_partials:
+            # add missing neurons (remain neurons = 0.8*n_neuron)
+            rng_select = np.random.default_rng(seed_partial)
+            select = np.arange(n_neuron)
+            rng_select.shuffle(select)
+            # , seed = seed_partial)[:select_num]
+            X_train = X_train_all[:, select[0:80]]
 
-            for seed_partial in seed_partials:
-                # add missing neurons (remain neurons = 0.8*n_neuron)
-                rng_select = np.random.default_rng(seed_partial)
-                select = np.arange(int(partial * n_neuron))
-                rng_select.shuffle(select)
-                # , seed = seed_partial)[:select_num]
-                X_train = X_train[:, select]
-                # sod solution
-                sod.fit(X_train, y_train, lam=10)
-                file_sod = 'sod_remain{}_partial_{}_sod_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'.\
-                        format(partial, seed_partial, r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-                sod.save(file_sod)
+            param_grid = dict(lam=lam)
+            # change estimator
+            grid = GridSearchCV(estimator=SOD(), param_grid=param_grid,#n_jobs=-1,
+                                cv=5, verbose=10, scoring=my_score_fun)
+            grid_result = grid.fit(X_train, y_train)
+            print("Best: {0}, using {1}".format(grid_result.best_score_, grid_result.best_params_))
 
-                # nbglm solution
-                # nbglm = NBGLM()
-                # nbglm.fit(X_train, y_train, lam=10)
-                # filename_nb = 'sod_missing{}_nbglm_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-                #     format(partial, r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-                # nbglm.save(filename_nb)
+            # change estimator
+            model_tune = NBGLM(lam = grid_result.best_params_['lam'])
+            model_tune.fit(X_train, y_train)
 
-                # poisson solution
-                # poisson = POISSON()
-                # poisson.fit(X_train, y_train, lam=10)
-                # filename_poi = 'sod_poisson_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}.pickle'. \
-                #     format(partial, r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101)
-                # poisson.save(filename_poi)
-
-                # evaluation
-                sod_r2_list.append(sod.evaluate(X_train, y_train_true, 'r2'))
-                sod_mse_list.append(sod.evaluate(X_train, y_train_true, 'mse'))
-
-                # nbglm_r2_list.append(nbglm.evaluate(X_test, y_test_true, 'r2'))
-                # nbglm_mse_list.append(nbglm.evaluate(X_test, y_test_true, 'mse'))
-                #
-                # poisson_r2_list.append(poisson.evaluate(X_test, y_test_true, 'r2'))
-                # poisson_mse_list.append(poisson.evaluate(X_test, y_test_true, 'mse'))
-
-        # log results
-        filename2 = 'sod_remain{}_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_X_{}_results.csv'. \
-            format(partial, r, s, gam, n_sim, n_bin, n_neuron, 101)
-        result = dict(sod_r2_list=sod_r2_list, sod_mse_list=sod_mse_list)  # ,
-        # nbglm_r2_list = nbglm_r2_list, nbglm_mse_list = nbglm_mse_list,
-        # poisson_r2_list = poisson_r2_list, poisson_mse_list = poisson_mse_list)
-
-        df = pd.DataFrame(result)
-        df.to_csv(filename2)
+            # change estimator name
+            filename1 = 'sod_sod_r_{}_s_{}_gam_{}_sim_{}_bin_{}_neuron_{}_beta_{}_X_{}_density{}_partial_{}.pickle'.\
+                format(r, s, gam, n_sim, n_bin, n_neuron, seed_beta, 101, density, seed_partial)
+            model_tune.save(filename=filename1)
