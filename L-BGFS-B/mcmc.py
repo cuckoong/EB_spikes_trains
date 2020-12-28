@@ -5,6 +5,8 @@ import pymc3 as pm
 import theano.tensor as tt
 from pymc3 import *
 from models import SOD
+import theano
+
 
 if __name__ == '__main__':
     #
@@ -13,6 +15,7 @@ if __name__ == '__main__':
     n_bin = 500
     n_neuron = 100
     s = 50
+    n_sample = n_sim*n_bin
     r = 5
     gam = 7
     density = 0.2
@@ -20,27 +23,38 @@ if __name__ == '__main__':
     x, y, y_true = SOD().simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron, density=density,
                                                             seed_beta=seed_beta, seed_X=101,
                                                             s = s, r = r, gam = gam)
+    y_mean = y.reshape(n_sim, n_bin)
+    y_mean = np.mean(y_mean, axis=0)
+    y_mean = np.tile(y_mean, n_sim)
 
     # data = dict(x=x, y=y)
+    x_shared = theano.shared(x)
+    y_shared = theano.shared(y)
+    y_mean = theano.shared(y_mean)
 
     with Model() as model:  # model specifications in PyMC3 are wrapped in a with-statement
         # Define priors
-        r = Uniform("r", lower=1, upper=100)
-        gam = Uniform("gam", lower=np.finfo(np.float32).eps, upper=100)
-        s = Uniform("s", lower=np.finfo(np.float32).eps, upper=100)
+        BoundNormal0 = Bound(Normal, lower=1)
+        r = BoundNormal0("r", mu=5, sd=5)
+        gam = BoundNormal0("gam", mu=5, sd=5)
+        s = BoundNormal0("s", mu=50, sd=5)
 
-        beta0 = Uniform("beta0", lower=-1, upper=1)
-        beta = Uniform("beta", lower=-1, upper=1, shape=n_neuron)
+        beta0 = Normal("beta0", mu=0, sd=1)
+        BoundNormal = Bound(Normal, upper=1, lower=-1)
+        beta = BoundNormal("beta", mu=0, sd =5, shape=n_neuron)
 
         # mu
-        mu = pm.Deterministic('mu', (gam*math.exp(beta0 + x.dot(beta))+1)**(-1/gam))
+        mu = Deterministic('mu', (gam*pm.math.exp(beta0 + pm.math.dot(x_shared, beta))+1)**(-1/gam))
         # phi
-        phi = Beta('phi', alpha=s*mu, beta=s*(1-mu))
+        phi = Beta('phi', alpha=s*mu+n_sim*r, beta=s*(1-mu)+n_sim*y_mean, shape=n_sample)
 
         # Define likelihood
-        likelihood = NegativeBinomial("y", n=r, p=phi, observed=y) # attention
+        likelihood = NegativeBinomial("y", alpha =r, mu=r*(1/phi-1), observed=y_shared) # attention
 
         # Inference!
-        trace = sample(100, cores=2)  # draw 3000 posterior samples using NUTS sampling
+        trace = sample(1000, cores=1, init='adapt_diag',  progressbar=True)
+        pm.save_trace(trace, 'trace.trace')# draw 3000 posterior samples using NUTS sampling
+        az.plot_trace(trace)
+        az.summary(trace)
 
         print('')
