@@ -349,14 +349,14 @@ class POISSON(BaseEstimator):
         """
 
         np.random.seed(seed_beta)
-        beta0 = np.random.uniform(-1, 1)[0]
+        beta0 = np.random.uniform(-1, 1)
         rvs = stats.uniform(loc=-1, scale=2).rvs
         beta = sps.random(1, n_neuron, density=density, data_rvs=rvs).toarray()[0]
 
         # simulate data X
         np.random.seed(seed_X)
         X = np.random.normal(0.0, 1.0, [n_bin, n_neuron])
-        y_true = np.exp(beta0 + np.dot(X, beta))
+        y_true = np.log(1+np.exp(beta0 + np.dot(X, beta)))
 
         # simulate y_sim
         rng = np.random.default_rng(42)
@@ -378,8 +378,7 @@ class POISSON(BaseEstimator):
     def objective(self, x0, X, y):
         beta0 = x0[0]
         beta = x0[1:]
-
-        mu = np.exp(beta0 + np.dot(X, beta))
+        mu = np.log(1+np.exp(beta0 + np.dot(X, beta)))
         LL_sum = -1 * np.sum(y * np.log(mu) - mu)
         LL_sum += self.lam * (self.alpha * np.sum(np.abs(beta)) + 1 / 2 * (1 - self.alpha) * np.sum(beta ** 2))
         return LL_sum
@@ -389,8 +388,13 @@ class POISSON(BaseEstimator):
         beta = x0[1:]
 
         der = np.zeros_like(x0)
-        der[0] = -1 * np.sum(y - np.exp(beta0 + np.dot(X, beta)))
-        der[1:] = -1 * np.sum(X * (y - np.exp(beta0 + np.dot(X, beta))).reshape(-1, 1), axis=0) + \
+        mu = np.log(1 + np.exp(beta0 + np.dot(X, beta)))
+        der[0] = -1 * np.sum((y/mu - 1) *
+                             np.exp(beta0 + np.dot(X, beta))/(np.exp(beta0 + np.dot(X, beta))+1)
+                             )
+        der[1:] = -1 * np.sum(X * ((y/mu - 1) *
+                              np.exp(beta0 + np.dot(X, beta)) / (np.exp(beta0 + np.dot(X, beta)) + 1)).reshape(-1, 1),
+                              axis=0) + \
                   self.lam * (self.alpha * np.sign(beta) + (1 - self.alpha) * beta)
 
         return der
@@ -417,7 +421,7 @@ class POISSON(BaseEstimator):
         op = self.op
         beta0_op = op['x'][0]
         beta_op = op['x'][1:]
-        y_op = np.exp(beta0_op + np.dot(X, beta_op))  # estimated y value
+        y_op = np.log(1 + np.exp(beta0_op + np.dot(X, beta_op)))  # estimated y value
         return y_op
 
     def evaluate(self, X, y, metrics='r2'):
@@ -559,4 +563,3 @@ class NBGLM0(BaseEstimator):
     def save(self, filename):
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
-
