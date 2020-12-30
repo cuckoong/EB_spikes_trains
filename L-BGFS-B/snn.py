@@ -1,6 +1,7 @@
 from brian2 import *
 from models import SOD, NBGLM, POISSON
 import pandas as pd
+import numpy as np
 import brian2genn
 set_device('genn')#, use_GPU= False)
 prefs.devices.genn.cuda_backend.extra_compile_args_nvcc += ['--verbose']
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     '''
 
     # second part
-    P = NeuronGroup(100, eqs, threshold='v>Vt', reset='v = Vr', refractory=5 * ms,
+    P = NeuronGroup(10, eqs, threshold='v>Vt', reset='v = Vr', refractory=5 * ms,
                     # method='exact')
                     method='euler')
     P.v = 'Vr + rand() * (Vt - Vr)'
@@ -49,15 +50,15 @@ if __name__ == '__main__':
     mon = SpikeMonitor(input)
     s_mon = SpikeMonitor(P)
 
-    duration = 2500*1000
+    duration = 250*1000
     run(duration * ms)
 
-    out, idx = pd.cut([0, duration], bins=int(duration / 50), retbins=True)  # 50ms per bin
+    out, idx = pd.cut([0, duration], bins=int(duration / 10), retbins=True)  # 10ms per bin
     # spike_count_y = pd.cut(s_mon.spike_trains()[0]/second*1000, bins=idx)
     # y = spike_count_y.value_counts().values
 
     y = []
-    for tmp in range(100):
+    for tmp in range(10):
         spike_time = s_mon.spike_trains()[tmp] / second * 1000
         spike_count = pd.cut(spike_time, bins=idx)
         y.append(spike_count.value_counts().values)
@@ -69,35 +70,5 @@ if __name__ == '__main__':
         spike_count = pd.cut(spike_time, bins=idx)
         X.append(spike_count.value_counts().values)
     X = np.vstack(X).T
-
-    i = 40
-    # X_train = X[:int(len(X)/5*4), :]
-    # X_test = X[int(len(X)/5*4):-1, :]
-    # y_train = y[1:int(len(X)/5*4)+1, i]
-    # y_test = y[int(len(X)/5*4)+1:, i]
-    #
-    X_train = X[:int(len(X) / 5 * 4), :]
-    X_test = X[int(len(X) / 5 * 4):, :]
-
-    y_train = y[:int(len(X) / 5 * 4), i]
-    y_test = y[int(len(X) / 5 * 4):, i]
-
-    # sod
-    sod = SOD()
-    sod.fit(X_train, y_train, lam=1)
-    # sod.evaluate(X_train, y_train, 'mse')
-    mse = sod.evaluate(X_test, y_test, 'mse')
-    llsum = -1*sod.objective(sod.op.x, X_test, y_test)
-    print(mse)
-    print(llsum)
-
-
-    poisson = POISSON()
-    poisson.fit(X_train, y_train, lam=1)
-    # poisson.evaluate(X_train, y_train, 'r2')
-    mse = poisson.evaluate(X_test, y_test, 'mse')
-    llsum = -1*poisson.objective(poisson.op.x, X_test, y_test)
-    print(mse)
-    print(llsum)
 
     print('done')
