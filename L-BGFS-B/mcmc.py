@@ -11,14 +11,18 @@ import theano
 if __name__ == '__main__':
     #
     seed_beta = 12
-    n_sim = 10
-    n_bin = 10
+    n_sim = 50
+    n_bin = 500
     n_neuron = 100
     s = 50
     n_sample = n_sim*n_bin
     r = 5
     gam = 7
     density = 0.2
+
+    filename = 'sod_sod_fb_sim_{}_bin{}_r_{}_s_{}_gam_{}_neuron_{}_density_{}_beta_{}_X_{}_trace.trace'.format(n_sim, n_bin,r, s, gam, n_neuron, density, seed_beta, 101)
+
+    #filename = 'sod_sod_fb_sim_50_bin500_r_r ~ Bound-Normal_s_s ~ Bound-Normal_gam_gam ~ Bound-Normal_neuron_100_density_0.2_beta_12_X_101_trace.trace'
 
     x, y, y_true = SOD().simulate(n_sim=n_sim, n_bin=n_bin, n_neuron=n_neuron, density=density,
                                                             seed_beta=seed_beta, seed_X=101,
@@ -52,15 +56,11 @@ if __name__ == '__main__':
         likelihood = NegativeBinomial("y", alpha =r, mu=r*(1/phi-1), observed=y_shared) # attention
 
         # Inference!
-        # idata = sample(20, cores=1, init='adapt_diag', progressbar=True, return_inferencedata=True,
-        #                tune=1500, chains=4,
-                       # )
-        # az.to_netcdf(idata, 'trace.trace')
-        # pm.save_trace(trace, 'trace.trace')# draw 3000 posterior samples using NUTS sampling
+        idata = sample(1000, cores=1, progressbar=True, return_inferencedata=True, tune=2000, chains=4)
+     
+        az.to_netcdf(idata, filename)
 
-    with model:
-        trace = az.from_netcdf('trace.trace')
-    # # az.plot_trace(trace)
-    # az.summary(trace)
-
-    print('')
+    #with model:
+    #    trace = az.from_netcdf(filename)
+     # az.plot_trace(trace)
+    #print(az.summary(trace))

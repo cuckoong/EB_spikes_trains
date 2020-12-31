@@ -71,4 +71,34 @@ if __name__ == '__main__':
         X.append(spike_count.value_counts().values)
     X = np.vstack(X).T
 
+    i = 40
+    # X_train = X[:int(len(X)/5*4), :]
+    # X_test = X[int(len(X)/5*4):-1, :]cd
+    # y_train = y[1:int(len(X)/5*4)+1, i]
+    # y_test = y[int(len(X)/5*4)+1:, i]
+    #
+    X_train = X[:int(len(X) / 5 * 4), :]
+    X_test = X[int(len(X) / 5 * 4):, :]
+
+    y_train = y[:int(len(X) / 5 * 4), i]
+    y_test = y[int(len(X) / 5 * 4):, i]
+
+    # sod
+    sod = SOD()
+    sod.fit(X_train, y_train, lam=1)
+    # sod.evaluate(X_train, y_train, 'mse')
+    mse = sod.evaluate(X_test, y_test, 'mse')
+    llsum = -1*sod.objective(sod.op.x, X_test, y_test)
+    print(mse)
+    print(llsum)
+
+
+    poisson = POISSON()
+    poisson.fit(X_train, y_train, lam=1)
+    # poisson.evaluate(X_train, y_train, 'r2')
+    mse = poisson.evaluate(X_test, y_test, 'mse')
+    llsum = -1*poisson.objective(poisson.op.x, X_test, y_test)
+    print(mse)
+    print(llsum)
+
     print('done')
