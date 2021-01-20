@@ -1,5 +1,5 @@
 # EB_spikes_trains
-Jupyter notebook for Paper: An Efficient and Flexible Spike Train Model via Empirical Bayes
+Python Code for Paper: An Efficient and Flexible Spike Train Model via Empirical Bayes
 
 
 ## [simulation-experiment.ipynb](https://github.com/cuckoong/EB_spikes_trains/blob/master/simulation-experiment.ipynb)
