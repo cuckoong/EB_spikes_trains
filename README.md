@@ -22,5 +22,5 @@ scipy \
 numpy \
 pandas \
 scikit-learn \
-pymc3 \
+pymc3
      
