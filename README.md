@@ -5,6 +5,7 @@ Python Code for Paper: An Efficient and Flexible Spike Train Model via Empirical
 ## [models.py](https://github.com/cuckoong/EB_spikes_trains/blob/master/models.py)
 Simulation and Estimations using the 'SODS', NB-GLM, Poisson-GLM models.
 
+Create 'SODS' model by sods = SODS()
 
 
 
