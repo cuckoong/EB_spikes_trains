@@ -6,6 +6,8 @@ Python Code for Paper: An Efficient and Flexible Spike Train Model via Empirical
 Simulation and Estimations using the 'SODS', NB-GLM, Poisson-GLM models.
 
 
+
+
 ## [snn.py](https://github.com/cuckoong/EB_spikes_trains/blob/master/snn.py)
 Simulation for Spiking Neural Network Data
 
